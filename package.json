@@ -1,0 +1,64 @@
+{
+  "name": "dsh-wechat-assistant",
+  "version": "1.0.0",
+  "description": "微信助理：在微信里直接给 DSH 下发指令，执行结果实时回传到微信聊天窗口。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/qr.js",
+    "lib/bridge.js",
+    "lib/channel.js",
+    "lib/store.js",
+    "lib/weixin.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "assets/icon-180.png",
+    "assets/icon-128.png",
+    "assets/icon-64.png",
+    "README.md",
+    "README.zh.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "wechat",
+    "weixin",
+    "clawbot",
+    "remote",
+    "im"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Huangzihengcmd/dsh-wechat-assistant.git"
+  },
+  "homepage": "https://github.com/Huangzihengcmd/dsh-wechat-assistant#readme",
+  "bugs": {
+    "url": "https://github.com/Huangzihengcmd/dsh-wechat-assistant/issues"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  }
+}

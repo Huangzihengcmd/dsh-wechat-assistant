@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "WeChat Assistant",
+    "description": "Connects DSH to the WeChat ClawBot channel: scan a QR code once, then send instructions from WeChat and receive results back in the same chat window."
+  }
+}

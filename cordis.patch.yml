@@ -1,0 +1,5 @@
+# 微信助理：一个 Host 插件（扫码登录 + 长轮询通道 + 设置页路由）和一个 Client 插件（设置页）。
+# 行 id 与包名一致，方便在 Plugins 页面按名字找到；开关由设置页里的“连接 / 取消连接”控制。
+- insert:
+    - id: dsh-wechat-assistant
+      name: dsh-wechat-assistant
