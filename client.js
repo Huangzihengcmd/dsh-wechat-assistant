@@ -608,6 +608,15 @@ window.__ModuleLoader__.load({
       never: '还没有登录过微信。在右侧扫码即可开始。',
       lastError: '最近一次异常',
       qrFailed: '二维码生成失败，请点击刷新',
+      accessTitle: '访问控制',
+      accessDesc:
+        '只有主人和已批准的微信账号能驱动 Agent。其他人发来的消息不会被执行，只会出现在下面的待审批列表里，由你在这里手动批准。',
+      accessOwner: '主人',
+      accessNoOwner: '还没有设定主人。重新扫码登录，你的微信账号会被设为默认主人。',
+      accessPending: '待审批',
+      accessAllowed: '已批准',
+      approve: '批准',
+      revoke: '撤销',
       qrExpired: '二维码已过期。点「刷新二维码」换一张新的再扫。',
       refreshQr: '刷新二维码',
       qrAlt: '微信登录二维码',
@@ -640,6 +649,15 @@ window.__ModuleLoader__.load({
       never: 'No WeChat account has been signed in yet. Scan the code on the right to start.',
       lastError: 'Last error',
       qrFailed: 'Could not build the QR code. Try refreshing.',
+      accessTitle: 'Access control',
+      accessDesc:
+        'Only the owner and approved WeChat accounts can drive the agent. Messages from anyone else are not executed — they appear in the pending list below for you to approve.',
+      accessOwner: 'Owner',
+      accessNoOwner: 'No owner yet. Scan the QR code again — your WeChat account becomes the default owner.',
+      accessPending: 'Pending approval',
+      accessAllowed: 'Approved',
+      approve: 'Approve',
+      revoke: 'Revoke',
       qrExpired: 'This QR code has expired. Press Refresh QR code to get a new one.',
       refreshQr: 'Refresh QR code',
       qrAlt: 'WeChat sign-in QR code',
@@ -786,6 +804,8 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState('')
       const [error, setError] = React.useState('')
       const [verifyCode, setVerifyCode] = React.useState('')
+      /** 发送者授权状态：主人、已批准、待审批。 */
+      const [access, setAccess] = React.useState({ owner: '', allowed: [], pending: [] })
       /** 打开页面是否已经自动申请过二维码：只自动一次，之后交给按钮。 */
       const autoStarted = React.useRef(false)
 
@@ -801,9 +821,19 @@ window.__ModuleLoader__.load({
         }
       }, [])
 
+      const refreshAccess = React.useCallback(async () => {
+        try {
+          const next = await api('/access')
+          setAccess({ owner: next.owner ?? '', allowed: next.allowed ?? [], pending: next.pending ?? [] })
+        } catch {
+          // 访问控制不可用时保持空列表：不显示任何可点的授权动作。
+        }
+      }, [])
+
       React.useEffect(() => {
         let alive = true
         refresh()
+        refreshAccess()
         const timer = setInterval(() => {
           if (alive) refresh()
         }, 1500)
@@ -811,7 +841,13 @@ window.__ModuleLoader__.load({
           alive = false
           clearInterval(timer)
         }
-      }, [refresh])
+      }, [refresh, refreshAccess])
+
+      // 授权列表变化不频繁，但待审批的请求应该尽快出现在页面上。
+      React.useEffect(() => {
+        const timer = setInterval(refreshAccess, 4000)
+        return () => clearInterval(timer)
+      }, [refreshAccess])
 
       // 打开页面且还没连接过任何账号时，直接要一张二维码——不要让用户先猜
       // 该点哪里。只自动一次；失败或取消后由按钮接管，避免反复弹码。
@@ -833,13 +869,14 @@ window.__ModuleLoader__.load({
           try {
             await api(path, init)
             await refresh()
+            await refreshAccess()
           } catch (cause) {
             setError(String(cause?.message ?? cause))
           } finally {
             setBusy('')
           }
         },
-        [refresh],
+        [refresh, refreshAccess],
       )
 
       const login = state?.login
@@ -1046,6 +1083,92 @@ window.__ModuleLoader__.load({
                   ),
                 )
               : null,
+          ),
+          h(
+            'div',
+            { className: 'dswa-card' },
+            h(
+              'div',
+              { className: 'dswa-card-head' },
+              h('h3', { className: 'dswa-card-title' }, tr('accessTitle')),
+            ),
+            h('p', { className: 'dswa-card-desc' }, tr('accessDesc')),
+            access.owner !== undefined && access.owner !== ''
+              ? h(
+                  'div',
+                  { className: 'dswa-meta' },
+                  h(
+                    'div',
+                    { className: 'dswa-meta-row' },
+                    h('span', { className: 'dswa-meta-key' }, tr('accessOwner')),
+                    h('span', { className: 'dswa-meta-val', title: access.owner }, access.owner),
+                  ),
+                )
+              : h('p', { className: 'dswa-note' }, tr('accessNoOwner')),
+            (access.pending ?? []).length > 0
+              ? h(
+                  'div',
+                  { className: 'dswa-meta' },
+                  h(
+                    'div',
+                    { className: 'dswa-meta-row' },
+                    h('span', { className: 'dswa-meta-key' }, tr('accessPending')),
+                    h('span', { className: 'dswa-meta-val' }, String(access.pending.length)),
+                  ),
+                )
+              : null,
+            (access.pending ?? []).map((userId) =>
+              h(
+                'div',
+                { key: `pending-${userId}`, className: 'dswa-row' },
+                h('span', { className: 'dswa-meta-val', title: userId }, userId),
+                h(
+                  'button',
+                  {
+                    className: 'dswa-btn dswa-btn-primary',
+                    disabled: busy !== '',
+                    onClick: () =>
+                      run('approve', '/access/approve', {
+                        method: 'POST',
+                        body: JSON.stringify({ userId }),
+                      }),
+                  },
+                  tr('approve'),
+                ),
+              ),
+            ),
+            (access.allowed ?? []).length > 0
+              ? h(
+                  'div',
+                  { className: 'dswa-meta' },
+                  h(
+                    'div',
+                    { className: 'dswa-meta-row' },
+                    h('span', { className: 'dswa-meta-key' }, tr('accessAllowed')),
+                    h('span', { className: 'dswa-meta-val' }, String(access.allowed.length)),
+                  ),
+                )
+              : null,
+            (access.allowed ?? []).map((userId) =>
+              h(
+                'div',
+                { key: `allowed-${userId}`, className: 'dswa-row' },
+                h('span', { className: 'dswa-meta-val', title: userId }, userId),
+                h(
+                  'button',
+                  {
+                    className: 'dswa-btn dswa-btn-danger',
+                    disabled: busy !== '',
+                    onClick: () =>
+                      run('revoke', '/access/revoke', {
+                        method: 'POST',
+                        body: JSON.stringify({ userId }),
+                      }),
+                  },
+                  tr('revoke'),
+                ),
+              ),
+            ),
           ),
         ),
       )

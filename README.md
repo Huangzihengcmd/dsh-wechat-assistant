@@ -50,6 +50,18 @@ Plugins 页面 → 添加插件 → 填入仓库地址 `Huangzihengcmd/dsh-wecha
 
 二维码有时效。过期后页面会提示，点「**刷新二维码**」换一张新的即可。Host 侧也会自动换发（最多 3 次）。
 
+## 访问控制（重要）
+
+**只有配置的主人微信账号能驱动 Agent；其他发送者默认拒绝，需显式审批。**
+
+- 第一次扫码登录的微信账号会被记为**主人**。
+- 白名单为空时，**任何陌生人的消息都不会被执行**——不创建 Session、不调用 Agent、不碰工具。
+- 陌生人发消息只会进入「待审批」列表，并收到一条提示；你在**设置 → 微信助理 → 访问控制**里点「批准」之后，他才能驱动 Agent。
+- 「撤销」随时收回某个已批准账号的权限。
+- 主人不能被后来扫码的人顶替。
+
+授权状态存在 `<DSH_HOME>/wechat-assistant/allowlist.json`。
+
 ## 工作方式
 
 ```
@@ -63,6 +75,7 @@ Plugins 页面 → 添加插件 → 填入仓库地址 `Huangzihengcmd/dsh-wecha
 | `<DSH_HOME>/wechat-assistant/accounts/<id>.json` | 账号凭据（token，权限 0600） |
 | `<DSH_HOME>/wechat-assistant/accounts/<id>.sync.json` | 长轮询续传游标 |
 | `<DSH_HOME>/wechat-assistant/accounts/<id>.context-tokens.json` | 各用户的 context_token |
+| `<DSH_HOME>/wechat-assistant/allowlist.json` | 主人、已批准与待审批的微信用户 |
 
 默认 `<DSH_HOME>` 为 `~/.dsh`。
 
@@ -77,6 +90,7 @@ Plugins 页面 → 添加插件 → 填入仓库地址 `Huangzihengcmd/dsh-wecha
 
 ## 隐私与安全
 
+- **入站默认拒绝**：只有主人和已批准的微信账号能驱动 Agent。陌生人的消息不会创建 Session、不会调用 Agent、不会触碰工具集——详见上面的「访问控制」。
 - 微信凭据只存在你的机器上，**不会**发给浏览器，也不会发给 DSH 之外的任何地方。
 - HTTP 路由只接受**本机**（loopback）请求。
 - 消息内容会进入 DSH 的会话日志——它和网页端对话一样，是可追溯的。
