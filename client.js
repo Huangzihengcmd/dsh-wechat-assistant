@@ -617,6 +617,23 @@ window.__ModuleLoader__.load({
       accessAllowed: '已批准',
       approve: '批准',
       revoke: '撤销',
+      agentsTitle: 'Agent 与模型',
+      agentsCount: '个 Agent',
+      agentsDesc:
+        '一个微信可以驱动多个 Agent：每个 Agent 有自己的 preset、模型和独立上下文。在微信里用 /use <名字> 切换，用 /model <provider>/<model> 换模型。',
+      agentsDefaultModel: '（宿主默认模型）',
+      agentsDefaultPreset: '（宿主默认 preset）',
+      agentsPreset: 'preset',
+      agentsNamePlaceholder: '新 Agent 名字',
+      addAgent: '添加',
+      remove: '删除',
+      setDefault: '设为默认',
+      coexistTitle: '共存账号',
+      coexistDesc:
+        '微信 ClawBot 是单账号模式：同一个微信去扫新的码，会把绑定改到新 bot 上，本机其它应用（比如 WorkBuddy）的 bot 随即失效。把那些应用的 bot token 填在这里，请求二维码时会一并报给服务端，它们就不会被顶掉。token 只存在本机。',
+      coexistLabelPlaceholder: '应用名（如 WorkBuddy）',
+      coexistTokenPlaceholder: 'bot token',
+      addCoexist: '登记',
       qrExpired: '二维码已过期。点「刷新二维码」换一张新的再扫。',
       refreshQr: '刷新二维码',
       qrAlt: '微信登录二维码',
@@ -658,6 +675,23 @@ window.__ModuleLoader__.load({
       accessAllowed: 'Approved',
       approve: 'Approve',
       revoke: 'Revoke',
+      agentsTitle: 'Agents and models',
+      agentsCount: 'agents',
+      agentsDesc:
+        'One WeChat account can drive several agents: each has its own preset, model and context. Switch with /use <name> in WeChat, change the model with /model <provider>/<model>.',
+      agentsDefaultModel: '(host default model)',
+      agentsDefaultPreset: '(host default preset)',
+      agentsPreset: 'preset',
+      agentsNamePlaceholder: 'New agent name',
+      addAgent: 'Add',
+      remove: 'Remove',
+      setDefault: 'Make default',
+      coexistTitle: 'Coexisting accounts',
+      coexistDesc:
+        'The WeChat ClawBot channel is single-account: scanning a new QR code with the same WeChat account rebinds it to a new bot and invalidates the other bots on this machine (for example WorkBuddy). Enter those apps\' bot tokens here so they are reported to the server with the QR request and are not displaced. Tokens stay on this machine.',
+      coexistLabelPlaceholder: 'App name (e.g. WorkBuddy)',
+      coexistTokenPlaceholder: 'bot token',
+      addCoexist: 'Register',
       qrExpired: 'This QR code has expired. Press Refresh QR code to get a new one.',
       refreshQr: 'Refresh QR code',
       qrAlt: 'WeChat sign-in QR code',
@@ -806,6 +840,18 @@ window.__ModuleLoader__.load({
       const [verifyCode, setVerifyCode] = React.useState('')
       /** 发送者授权状态：主人、已批准、待审批。 */
       const [access, setAccess] = React.useState({ owner: '', allowed: [], pending: [] })
+      /** Agent 注册表。 */
+      const [agents, setAgents] = React.useState({ agents: [], defaultName: 'default' })
+      /** DSH 的模型目录。 */
+      const [catalog, setCatalog] = React.useState({ providers: [] })
+      /** DSH 的 agent preset 列表。 */
+      const [presets, setPresets] = React.useState([])
+      /** 新建 Agent 的草稿。 */
+      const [draft, setDraft] = React.useState({ name: '', model: '', preset: '' })
+      /** 共存账号：同机其它微信 ClawBot 应用的账号。 */
+      const [coexist, setCoexist] = React.useState({ accounts: [] })
+      /** 共存账号的草稿。 */
+      const [coexistDraft, setCoexistDraft] = React.useState({ label: '', token: '' })
       /** 打开页面是否已经自动申请过二维码：只自动一次，之后交给按钮。 */
       const autoStarted = React.useRef(false)
 
@@ -830,10 +876,41 @@ window.__ModuleLoader__.load({
         }
       }, [])
 
+      const refreshAgents = React.useCallback(async () => {
+        try {
+          const next = await api('/agents')
+          setAgents({ agents: next.agents ?? [], defaultName: next.defaultName ?? 'default' })
+        } catch {
+          // 保留上一次的列表，不清空成空壳。
+        }
+      }, [])
+
+      const refreshCatalog = React.useCallback(async () => {
+        try {
+          const [models, presetList] = await Promise.all([api('/models'), api('/presets')])
+          setCatalog({ providers: models.providers ?? [] })
+          setPresets(presetList.presets ?? [])
+        } catch {
+          // 目录不可用时保持空列表，下拉框只剩「宿主默认」。
+        }
+      }, [])
+
+      const refreshCoexist = React.useCallback(async () => {
+        try {
+          const next = await api('/coexist')
+          setCoexist({ accounts: next.accounts ?? [] })
+        } catch {
+          // 保留上一次的列表。
+        }
+      }, [])
+
       React.useEffect(() => {
         let alive = true
         refresh()
         refreshAccess()
+        refreshAgents()
+        refreshCatalog()
+        refreshCoexist()
         const timer = setInterval(() => {
           if (alive) refresh()
         }, 1500)
@@ -841,7 +918,7 @@ window.__ModuleLoader__.load({
           alive = false
           clearInterval(timer)
         }
-      }, [refresh, refreshAccess])
+      }, [refresh, refreshAccess, refreshAgents, refreshCatalog, refreshCoexist])
 
       // 授权列表变化不频繁，但待审批的请求应该尽快出现在页面上。
       React.useEffect(() => {
@@ -870,13 +947,15 @@ window.__ModuleLoader__.load({
             await api(path, init)
             await refresh()
             await refreshAccess()
+            await refreshAgents()
+            await refreshCoexist()
           } catch (cause) {
             setError(String(cause?.message ?? cause))
           } finally {
             setBusy('')
           }
         },
-        [refresh, refreshAccess],
+        [refresh, refreshAccess, refreshAgents, refreshCoexist],
       )
 
       const login = state?.login
@@ -1167,6 +1246,207 @@ window.__ModuleLoader__.load({
                   },
                   tr('revoke'),
                 ),
+              ),
+            ),
+          ),
+          h(
+            'div',
+            { className: 'dswa-card' },
+            h(
+              'div',
+              { className: 'dswa-card-head' },
+              h('h3', { className: 'dswa-card-title' }, tr('agentsTitle')),
+              h('span', { className: 'dswa-badge' }, `${agents.agents.length} ${tr('agentsCount')}`),
+            ),
+            h('p', { className: 'dswa-card-desc' }, tr('agentsDesc')),
+            agents.agents.map((agent) =>
+              h(
+                'div',
+                { key: `agent-${agent.name}`, className: 'dswa-meta' },
+                h(
+                  'div',
+                  { className: 'dswa-meta-row' },
+                  h(
+                    'span',
+                    { className: 'dswa-meta-key' },
+                    `${agent.name}${agent.name === agents.defaultName ? ' *' : ''}`,
+                  ),
+                  h(
+                    'span',
+                    { className: 'dswa-meta-val', title: `${agent.provider}/${agent.model}` },
+                    agent.model === ''
+                      ? tr('agentsDefaultModel')
+                      : `${agent.provider}/${agent.model}`,
+                  ),
+                ),
+                h(
+                  'div',
+                  { className: 'dswa-meta-row' },
+                  h('span', { className: 'dswa-meta-key' }, tr('agentsPreset')),
+                  h(
+                    'span',
+                    { className: 'dswa-meta-val' },
+                    agent.preset === '' ? tr('agentsDefaultPreset') : agent.preset,
+                  ),
+                ),
+                h(
+                  'div',
+                  { className: 'dswa-row' },
+                  h(
+                    'button',
+                    {
+                      className: 'dswa-btn',
+                      disabled: busy !== '' || agent.name === 'default',
+                      onClick: () =>
+                        run('remove-agent', '/agents/remove', {
+                          method: 'POST',
+                          body: JSON.stringify({ name: agent.name }),
+                        }),
+                    },
+                    tr('remove'),
+                  ),
+                  h(
+                    'button',
+                    {
+                      className: 'dswa-btn',
+                      disabled: busy !== '' || agent.name === agents.defaultName,
+                      onClick: () =>
+                        run('default-agent', '/agents/default', {
+                          method: 'POST',
+                          body: JSON.stringify({ name: agent.name }),
+                        }),
+                    },
+                    tr('setDefault'),
+                  ),
+                ),
+              ),
+            ),
+            h(
+              'div',
+              { className: 'dswa-code-row' },
+              h('input', {
+                className: 'dswa-input',
+                value: draft.name,
+                placeholder: tr('agentsNamePlaceholder'),
+                onChange: (event) => setDraft({ ...draft, name: event.target.value }),
+              }),
+              h(
+                'select',
+                {
+                  className: 'dswa-input',
+                  value: draft.model,
+                  onChange: (event) => setDraft({ ...draft, model: event.target.value }),
+                },
+                h('option', { value: '' }, tr('agentsDefaultModel')),
+                catalog.providers.flatMap((provider) =>
+                  provider.models.map((model) =>
+                    h(
+                      'option',
+                      { key: `${provider.id}/${model.id}`, value: `${provider.id}/${model.id}` },
+                      `${provider.id}/${model.id}`,
+                    ),
+                  ),
+                ),
+              ),
+              h(
+                'button',
+                {
+                  className: 'dswa-btn dswa-btn-primary',
+                  disabled: busy !== '' || draft.name.trim() === '',
+                  onClick: () => {
+                    const slash = draft.model.lastIndexOf('/')
+                    const provider = slash > 0 ? draft.model.slice(0, slash) : ''
+                    const model = slash > 0 ? draft.model.slice(slash + 1) : ''
+                    run('add-agent', '/agents/upsert', {
+                      method: 'POST',
+                      body: JSON.stringify({
+                        name: draft.name.trim(),
+                        provider,
+                        model,
+                        preset: draft.preset,
+                      }),
+                    }).then(() => setDraft({ ...draft, name: '' }))
+                  },
+                },
+                tr('addAgent'),
+              ),
+            ),
+            h(
+              'div',
+              { className: 'dswa-code-row' },
+              h(
+                'select',
+                {
+                  className: 'dswa-input',
+                  value: draft.preset,
+                  onChange: (event) => setDraft({ ...draft, preset: event.target.value }),
+                },
+                h('option', { value: '' }, tr('agentsDefaultPreset')),
+                presets.map((preset) =>
+                  h('option', { key: preset.id, value: preset.id }, preset.name ?? preset.id),
+                ),
+              ),
+            ),
+          ),
+          h(
+            'div',
+            { className: 'dswa-card' },
+            h(
+              'div',
+              { className: 'dswa-card-head' },
+              h('h3', { className: 'dswa-card-title' }, tr('coexistTitle')),
+            ),
+            h('p', { className: 'dswa-card-desc' }, tr('coexistDesc')),
+            coexist.accounts.map((account) =>
+              h(
+                'div',
+                { key: `coexist-${account.label}`, className: 'dswa-row' },
+                h('span', { className: 'dswa-meta-val', title: account.note ?? '' }, account.label),
+                h(
+                  'button',
+                  {
+                    className: 'dswa-btn dswa-btn-danger',
+                    disabled: busy !== '',
+                    onClick: () =>
+                      run('remove-coexist', '/coexist/remove', {
+                        method: 'POST',
+                        body: JSON.stringify({ label: account.label }),
+                      }),
+                  },
+                  tr('remove'),
+                ),
+              ),
+            ),
+            h(
+              'div',
+              { className: 'dswa-code-row' },
+              h('input', {
+                className: 'dswa-input',
+                value: coexistDraft.label,
+                placeholder: tr('coexistLabelPlaceholder'),
+                onChange: (event) => setCoexistDraft({ ...coexistDraft, label: event.target.value }),
+              }),
+              h('input', {
+                className: 'dswa-input',
+                value: coexistDraft.token,
+                placeholder: tr('coexistTokenPlaceholder'),
+                onChange: (event) => setCoexistDraft({ ...coexistDraft, token: event.target.value }),
+              }),
+              h(
+                'button',
+                {
+                  className: 'dswa-btn dswa-btn-primary',
+                  disabled: busy !== '' || coexistDraft.label.trim() === '' || coexistDraft.token.trim() === '',
+                  onClick: () =>
+                    run('add-coexist', '/coexist/add', {
+                      method: 'POST',
+                      body: JSON.stringify({
+                        label: coexistDraft.label.trim(),
+                        token: coexistDraft.token.trim(),
+                      }),
+                    }).then(() => setCoexistDraft({ label: '', token: '' })),
+                },
+                tr('addCoexist'),
               ),
             ),
           ),

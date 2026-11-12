@@ -50,6 +50,32 @@ Plugins 页面 → 添加插件 → 填入仓库地址 `Huangzihengcmd/dsh-wecha
 
 二维码有时效。过期后页面会提示，点「**刷新二维码**」换一张新的即可。Host 侧也会自动换发（最多 3 次）。
 
+## 一个微信跑多个 Agent
+
+每个 Agent 有自己的 **preset、模型和独立上下文**。在设置页「Agent 与模型」里建好它们，然后在微信里切换：
+
+| 指令 | 作用 |
+|---|---|
+| `/agents` | 列出所有 Agent（`*` 标记当前使用的） |
+| `/use <名字>` | 切换到某个 Agent |
+| `/models [provider]` | 列出 DSH 当前可用的模型 |
+| `/model <provider>/<model>` | 给当前 Agent 选定模型 |
+| `/new` | 结束当前对话，开始新的（保留 Agent 选择） |
+| `/status` | 查看当前 Agent、模型、preset 和会话 |
+| `/help` | 指令列表 |
+
+切到不同 Agent 后，两者各自保有独立的 DSH Session——上下文互不干扰。
+
+## 共存：不让同机其它应用被顶掉
+
+微信 ClawBot 是**单账号模式**：同一个微信去扫一张新码，服务端会把绑定改到新 bot 上，本机其它应用（WorkBuddy 等）的 bot 随即失效（表现为 `errcode -14 session timeout`）。
+
+官方通道用一个 `local_token_list` 参数避免这件事——请求二维码时把**本机已有的 bot token** 一并报上去，服务端据此识别出「这些 bot 已经绑过」，扫同一个码时返回「已连接过」而不是新建一个。
+
+官方实现只报自己那份凭据；两个应用各管各的目录时彼此看不见对方的 bot，于是就撞了。本插件提供「**共存账号**」登记：把其它应用的 bot token 填进来（设置页 → 共存账号），请求二维码时会一并报上去，它们就不会被顶掉。
+
+token 只保存在本机（`<DSH_HOME>/wechat-assistant/coexist.json`，权限 0600），插件不会去读别的应用的加密凭据。
+
 ## 访问控制（重要）
 
 **只有配置的主人微信账号能驱动 Agent；其他发送者默认拒绝，需显式审批。**
@@ -76,6 +102,8 @@ Plugins 页面 → 添加插件 → 填入仓库地址 `Huangzihengcmd/dsh-wecha
 | `<DSH_HOME>/wechat-assistant/accounts/<id>.sync.json` | 长轮询续传游标 |
 | `<DSH_HOME>/wechat-assistant/accounts/<id>.context-tokens.json` | 各用户的 context_token |
 | `<DSH_HOME>/wechat-assistant/allowlist.json` | 主人、已批准与待审批的微信用户 |
+| `<DSH_HOME>/wechat-assistant/agents.json` | Agent 注册表（名字 → preset + 模型） |
+| `<DSH_HOME>/wechat-assistant/coexist.json` | 同机其它 clawbot 应用的账号 |
 
 默认 `<DSH_HOME>` 为 `~/.dsh`。
 
